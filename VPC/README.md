@@ -43,6 +43,13 @@ This module creates a **VPC** with multi-AZ subnets, optional NAT Gateway, optio
 
 ---
 
+📝 Notes
+* Private subnets exist even if NAT is disabled, but will not have a route to the internet.
+* EC2 Security Group is optional; enable only when launching EC2 instances.
+* NAT Gateway, DB Security Group, and Elastic IP are optional and controlled via input variables.
+* This module is multi-AZ ready for high availability.
+
+
 ## 🔧 Example Usage
 
 ```hcl
@@ -64,8 +71,3 @@ module "vpc" {
 
 }
 
-📝 Notes
-* Private subnets exist even if NAT is disabled, but will not have a route to the internet.
-* EC2 Security Group is optional; enable only when launching EC2 instances.
-* NAT Gateway, DB Security Group, and Elastic IP are optional and controlled via input variables.
-* This module is multi-AZ ready for high availability.
