@@ -1,49 +1,51 @@
 # VPC Module
 
-This module creates a **VPC with public and private subnets**, optional NAT Gateway, and security group rules. It is reusable and configurable for different environments.
+This module creates a **VPC** with multi-AZ subnets, optional NAT Gateway, optional Elastic IP, and optional EC2/DB security groups. It is reusable in any Terraform project.
 
 ---
-## Features
-
-* Create a VPC with your desired CIDR block
-* Public and private subnets across multiple availability zones
-* Optional NAT Gateway with private route tables
-* Optional Elastic IP for NAT Gateway
-* Optional EC2 Security Group for instances
-* Optional DB Security Group for databases
 
 ## 🛠️ Required Inputs
 
-* vpc_name – Name of the VPC
-* vpc_cidr – CIDR block for the VPC
-* public_subnets – List of public subnet CIDRs
-* private_subnets – List of private subnet CIDRs
-* azs – Availability zones for subnets (multi-AZ)
-* enable_nat_gateway – Enable NAT Gateway and private route table (true/false)
-* create_eip – Create Elastic IP for NAT (true/false)
-* create_ec2_sg – Create EC2 security group (true/false)
-* allowed_ssh_cidr – List of CIDRs allowed to SSH into EC2
-* allowed_http_cidr – List of CIDRs allowed to access HTTP on EC2
-* db_port – Port for database security group (default: 3306)
+| Name            | Description                          | Type        | Default | Required |
+|-----------------|--------------------------------------|------------|---------|----------|
+| `vpc_name`       | Name of the VPC                       | string     | n/a     | yes      |
+| `vpc_cidr`       | CIDR block of the VPC                 | string     | n/a     | yes      |
+| `public_subnets` | List of public subnet CIDRs           | list(string)| n/a    | yes      |
+| `private_subnets`| List of private subnet CIDRs          | list(string)| n/a    | yes      |
+| `azs`            | List of availability zones (multi-AZ)| list(string)| n/a    | yes      |
+
+---
+
+## ⚙️ Optional Inputs
+
+| Name                | Description                                    | Type       | Default |  
+|--------------------|------------------------------------------------|-----------|---------|  
+| `enable_nat_gateway` | Enable NAT Gateway and private route table    | bool      | false   |  
+| `create_eip`         | Create Elastic IP for NAT Gateway             | bool      | true    |  
+| `create_ec2_sg`      | Create EC2 Security Group                     | bool      | true    |  
+| `allowed_ssh_cidr`   | CIDR blocks allowed to SSH into EC2          | list(string)| ["0.0.0.0/0"] |  
+| `allowed_http_cidr`  | CIDR blocks allowed for HTTP access          | list(string)| ["0.0.0.0/0"] |  
+| `db_port`            | Port for DB Security Group                     | number    | 3306    |  
 
 ---
 
 ## 📤 Outputs
 
-> Include outputs from your module. Example:
-
-| Name                 | Description                           |
-|----------------------|---------------------------------------|
-| `vpc_id`             | ID of the created VPC                  |
-| `public_subnet_ids`  | List of public subnet IDs              |
-| `private_subnet_ids` | List of private subnet IDs             |
-| `nat_gateway_ids`    | List of NAT Gateway IDs (if enabled)  |
-| `security_group_ids` | List of security group IDs             |
+| Name                 | Description                                   |  
+|---------------------|-----------------------------------------------|  
+| `vpc_id`            | ID of the created VPC                          |  
+| `public_subnet_ids` | List of public subnet IDs                       |  
+| `private_subnet_ids`| List of private subnet IDs                      |  
+| `ec2_sg_id`         | EC2 Security Group ID (optional)               |  
+| `db_sg_id`          | DB Security Group ID (optional)                |  
+| `nat_gateway_id`    | NAT Gateway ID (optional)                      |  
+| `eip_id`            | Elastic IP ID (optional)                       |  
 
 ---
 
 ## 🔧 Example Usage
 
+```hcl
 module "vpc" {
   source = "./modules/vpc"
 
@@ -59,4 +61,11 @@ module "vpc" {
   allowed_ssh_cidr   = ["YOUR_IP/32"]
   allowed_http_cidr  = ["0.0.0.0/0"]
   db_port            = 3306
+
 }
+
+📝 Notes
+* Private subnets exist even if NAT is disabled, but will not have a route to the internet.
+* EC2 Security Group is optional; enable only when launching EC2 instances.
+* NAT Gateway, DB Security Group, and Elastic IP are optional and controlled via input variables.
+* This module is multi-AZ ready for high availability.
