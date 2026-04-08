@@ -1,6 +1,8 @@
 # VPC Module
 
-This module creates a **VPC** with multi-AZ subnets, optional NAT Gateway, optional Elastic IP, and optional EC2/DB security groups. It is reusable in any Terraform project.
+This module creates a **VPC** with multi-AZ public and private subnets, optional NAT Gateway, optional Elastic IP, and optional EC2/DB security groups.  
+The EC2 Security Group supports **default ports (22, 80)** and allows you to add **custom ingress rules dynamically**.  
+It is reusable in any Terraform project and outputs security group IDs for use in EC2 modules.
 
 ---
 
@@ -23,9 +25,12 @@ This module creates a **VPC** with multi-AZ subnets, optional NAT Gateway, optio
 | `enable_nat_gateway` | Enable NAT Gateway and private route table    | bool      | false   |  
 | `create_eip`         | Create Elastic IP for NAT Gateway             | bool      | true    |  
 | `create_ec2_sg`      | Create EC2 Security Group                     | bool      | true    |  
-| `allowed_ssh_cidr`   | CIDR blocks allowed to SSH into EC2          | list(string)| ["0.0.0.0/0"] |  
-| `allowed_http_cidr`  | CIDR blocks allowed for HTTP access          | list(string)| ["0.0.0.0/0"] |  
+| `ec2_ingress_rules`  | List of additional ingress rules for EC2 SG. Each rule requires `from_port`, `to_port`, `protocol`, `cidr_blocks` | list(object) | default includes ports 22 & 80 |  
 | `db_port`            | Port for DB Security Group                     | number    | 3306    |  
+
+**Notes on `ec2_ingress_rules`:**  
+- Default rules (SSH 22 and HTTP 80) are applied if no custom rules are provided.  
+- Any custom rules you pass **replace the defaults**, unless you merge defaults manually in the root module.  
 
 ---
 
@@ -58,8 +63,12 @@ module "vpc" {
   create_eip         = true
   create_ec2_sg      = true
 
-  allowed_ssh_cidr   = ["YOUR_IP/32"]
-  allowed_http_cidr  = ["0.0.0.0/0"]
-  db_port            = 3306
+  # Optional: additional EC2 ports (default 22 & 80 are included if no custom rules are provided)
+  ec2_ingress_rules = [
+    { from_port = 22, to_port = 22, protocol = "tcp", cidr_blocks = ["YOUR_IP/32"] },
+    { from_port = 80, to_port = 80, protocol = "tcp", cidr_blocks = ["0.0.0.0/0"] },
+    { from_port = 443, to_port = 443, protocol = "tcp", cidr_blocks = ["0.0.0.0/0"] }
+  ]
 
+  db_port            = 3306
 }

@@ -4,6 +4,9 @@
 resource "aws_vpc" "this" {
   cidr_block = var.vpc_cidr
 
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+
   tags = {
     Name = var.vpc_name
   }
@@ -72,15 +75,19 @@ resource "aws_route_table_association" "public" {
 # NAT (Optional)
 # -------------------
 resource "aws_eip" "nat" {
-  count  = var.enable_nat_gateway && var.create_eip ? 1 : 0
-  domain = "vpc"
+  count = var.enable_nat_gateway && var.create_eip ? 1 : 0
+
+  # no vpc argument
+  tags = {
+    Name = "${var.vpc_name}-nat-eip"
+  }
 }
 
 resource "aws_nat_gateway" "nat" {
   count = var.enable_nat_gateway ? 1 : 0
 
   subnet_id     = aws_subnet.public[0].id
-  allocation_id = var.create_eip ? aws_eip.nat[0].id : null
+  allocation_id = var.create_eip && length(aws_eip.nat) > 0 ? aws_eip.nat[0].id : null
 
   depends_on = [aws_internet_gateway.this]
 
@@ -90,15 +97,18 @@ resource "aws_nat_gateway" "nat" {
 }
 
 # -------------------
-# PRIVATE ROUTE TABLE (Optional)
+# PRIVATE ROUTE TABLE
 # -------------------
 resource "aws_route_table" "private" {
-  count  = var.enable_nat_gateway ? 1 : 0
   vpc_id = aws_vpc.this.id
 
-  route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.nat[0].id
+  # Only create route if NAT Gateway is enabled
+  dynamic "route" {
+    for_each = var.enable_nat_gateway && length(aws_nat_gateway.nat) > 0 ? aws_nat_gateway.nat : []
+    content {
+      cidr_block     = "0.0.0.0/0"
+      nat_gateway_id = route.value.id
+    }
   }
 
   tags = {
@@ -107,33 +117,27 @@ resource "aws_route_table" "private" {
 }
 
 resource "aws_route_table_association" "private" {
-  count = var.enable_nat_gateway ? length(var.private_subnets) : 0
+  count = length(var.private_subnets)
 
   subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private[0].id
+  route_table_id = aws_route_table.private.id
 }
 
 # -------------------
 # SECURITY GROUPS
 # -------------------
-
-# EC2 SG (Optional)
 resource "aws_security_group" "ec2_sg" {
   count  = var.create_ec2_sg ? 1 : 0
   vpc_id = aws_vpc.this.id
 
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = var.allowed_ssh_cidr
-  }
-
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = var.allowed_http_cidr
+  dynamic "ingress" {
+    for_each = var.ec2_ingress_rules
+    content {
+      from_port   = ingress.value.from_port
+      to_port     = ingress.value.to_port
+      protocol    = ingress.value.protocol
+      cidr_blocks = ingress.value.cidr_blocks
+    }
   }
 
   egress {
@@ -148,7 +152,6 @@ resource "aws_security_group" "ec2_sg" {
   }
 }
 
-# DB SG (Optional, only if NAT enabled)
 resource "aws_security_group" "db_sg" {
   count  = var.enable_nat_gateway ? 1 : 0
   vpc_id = aws_vpc.this.id

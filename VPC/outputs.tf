@@ -12,10 +12,12 @@ output "private_subnet_ids" {
 
 output "ec2_sg_id" {
   value = var.create_ec2_sg ? aws_security_group.ec2_sg[0].id : null
+  # value = aws_security_group.ec2_sg.id
 }
 
 output "db_sg_id" {
   value = var.enable_nat_gateway ? aws_security_group.db_sg[0].id : null
+  # value = aws_security_group.db_sg.id
 }
 
 output "nat_gateway_id" {
