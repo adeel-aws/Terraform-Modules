@@ -1,51 +1,83 @@
 variable "ami_id" {
-  description = "AMI ID to use for EC2 instance"
   type        = string
+  description = "AMI ID"
 }
 
 variable "instance_name" {
-  description = "Name of the EC2 instance"
-  type        = string
-  default     = "web-server"
+  type    = string
+  default = "ec2"
 }
 
 variable "instance_type" {
-  description = "EC2 instance type"
-  type        = string
-  default     = "t2.micro"
+  type    = string
+  default = "t2.micro"
 }
 
 variable "subnet_id" {
-  description = "Subnet ID to launch EC2 in"
-  type        = string
+  type = string
 }
 
 variable "security_group_ids" {
-  description = "List of security group IDs to attach to EC2"
-  type        = list(string)
-  default     = []
+  type    = list(string)
+  default = []
 }
 
 variable "key_name" {
-  description = "SSH key name"
-  type        = string
-  default     = ""
+  type    = string
+  default = ""
 }
 
 variable "user_data" {
-  description = "Optional user_data script for EC2"
-  type        = string
-  default     = ""
-}
-
-variable "enable_ssm" {
-  description = "Whether to attach SSM IAM role to EC2"
-  type        = bool
-  default     = false
+  type    = string
+  default = ""
 }
 
 variable "environment" {
-  description = "Environment name for naming convention (dev/test/prod)"
-  type        = string
-  default     = "dev"
+  type    = string
+  default = "dev"
+}
+
+variable "project_name" {
+  type    = string
+  default = "myapp"
+}
+
+# ---------------- SSM ----------------
+variable "enable_ssm" {
+  type    = bool
+  default = false
+}
+
+# ---------------- Storage ----------------
+variable "root_volume_size" {
+  type    = number
+  default = 20
+}
+
+variable "root_volume_type" {
+  type    = string
+  default = "gp3"
+}
+
+variable "enable_volume_encryption" {
+  type    = bool
+  default = true
+}
+
+# ---------------- Monitoring ----------------
+variable "enable_detailed_monitoring" {
+  type    = bool
+  default = false
+}
+
+# ---------------- Elastic IP ----------------
+variable "enable_eip" {
+  type    = bool
+  default = false
+}
+
+# ---------------- Extra tags ----------------
+variable "tags" {
+  type    = map(string)
+  default = {}
 }

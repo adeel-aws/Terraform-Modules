@@ -10,20 +10,18 @@ output "private_subnet_ids" {
   value = aws_subnet.private[*].id
 }
 
-output "ec2_sg_id" {
-  value = var.create_ec2_sg ? aws_security_group.ec2_sg[0].id : null
-  # value = aws_security_group.ec2_sg.id
+output "elb_sg_id" {
+  value = var.create_elb_sg ? aws_security_group.elb_sg[0].id : null
+}
+
+output "app_sg_id" {
+  value = var.create_app_sg ? aws_security_group.app_sg[0].id : null
 }
 
 output "db_sg_id" {
-  value = var.enable_nat_gateway ? aws_security_group.db_sg[0].id : null
-  # value = aws_security_group.db_sg.id
+  value = var.create_db_sg ? aws_security_group.db_sg[0].id : null
 }
 
 output "nat_gateway_id" {
   value = var.enable_nat_gateway ? aws_nat_gateway.nat[0].id : null
-}
-
-output "eip_id" {
-  value = var.enable_nat_gateway && var.create_eip ? aws_eip.nat[0].id : null
 }

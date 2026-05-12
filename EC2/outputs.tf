@@ -1,14 +1,15 @@
 output "instance_id" {
-  description = "ID of the EC2 instance"
-  value       = aws_instance.this.id
+  value = aws_instance.this.id
 }
 
 output "public_ip" {
-  description = "Public IP of EC2 instance"
-  value       = aws_instance.this.public_ip
+  value = aws_instance.this.public_ip
 }
 
 output "private_ip" {
-  description = "Private IP of EC2 instance"
-  value       = aws_instance.this.private_ip
+  value = aws_instance.this.private_ip
+}
+
+output "eip" {
+  value = length(aws_eip.this) > 0 ? aws_eip.this[0].public_ip : null
 }

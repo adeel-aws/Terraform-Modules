@@ -1,3 +1,7 @@
+locals {
+  name_prefix = "${var.project_name}-${var.environment}"
+}
+
 # -------------------
 # VPC
 # -------------------
@@ -8,49 +12,52 @@ resource "aws_vpc" "this" {
   enable_dns_hostnames = true
 
   tags = {
-    Name = var.vpc_name
+    Name = "${local.name_prefix}-vpc"
   }
 }
 
 # -------------------
-# SUBNETS (Multi-AZ)
+# SUBNETS
 # -------------------
 resource "aws_subnet" "public" {
   count = length(var.public_subnets)
 
   vpc_id                  = aws_vpc.this.id
   cidr_block              = var.public_subnets[count.index]
-  availability_zone       = var.azs[count.index % length(var.azs)]
+  availability_zone      = var.azs[count.index % length(var.azs)]
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "${var.vpc_name}-public-${count.index + 1}"
+    Name = "${local.name_prefix}-public-${count.index + 1}"
   }
 }
 
 resource "aws_subnet" "private" {
   count = length(var.private_subnets)
 
-  vpc_id            = aws_vpc.this.id
-  cidr_block        = var.private_subnets[count.index]
+  vpc_id           = aws_vpc.this.id
+  cidr_block       = var.private_subnets[count.index]
   availability_zone = var.azs[count.index % length(var.azs)]
 
   tags = {
-    Name = "${var.vpc_name}-private-${count.index + 1}"
+    Name = "${local.name_prefix}-private-${count.index + 1}"
   }
 }
 
 # -------------------
-# INTERNET GATEWAY + PUBLIC ROUTE TABLE
+# IGW
 # -------------------
 resource "aws_internet_gateway" "this" {
   vpc_id = aws_vpc.this.id
 
   tags = {
-    Name = "${var.vpc_name}-igw"
+    Name = "${local.name_prefix}-igw"
   }
 }
 
+# -------------------
+# PUBLIC ROUTE TABLE
+# -------------------
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.this.id
 
@@ -60,7 +67,7 @@ resource "aws_route_table" "public" {
   }
 
   tags = {
-    Name = "${var.vpc_name}-public-rt"
+    Name = "${local.name_prefix}-public-rt"
   }
 }
 
@@ -72,14 +79,13 @@ resource "aws_route_table_association" "public" {
 }
 
 # -------------------
-# NAT (Optional)
+# NAT (optional)
 # -------------------
 resource "aws_eip" "nat" {
   count = var.enable_nat_gateway && var.create_eip ? 1 : 0
 
-  # no vpc argument
   tags = {
-    Name = "${var.vpc_name}-nat-eip"
+    Name = "${local.name_prefix}-nat-eip"
   }
 }
 
@@ -92,7 +98,7 @@ resource "aws_nat_gateway" "nat" {
   depends_on = [aws_internet_gateway.this]
 
   tags = {
-    Name = "${var.vpc_name}-nat"
+    Name = "${local.name_prefix}-nat"
   }
 }
 
@@ -102,7 +108,6 @@ resource "aws_nat_gateway" "nat" {
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.this.id
 
-  # Only create route if NAT Gateway is enabled
   dynamic "route" {
     for_each = var.enable_nat_gateway && length(aws_nat_gateway.nat) > 0 ? aws_nat_gateway.nat : []
     content {
@@ -112,7 +117,7 @@ resource "aws_route_table" "private" {
   }
 
   tags = {
-    Name = "${var.vpc_name}-private-rt"
+    Name = "${local.name_prefix}-private-rt"
   }
 }
 
@@ -124,19 +129,21 @@ resource "aws_route_table_association" "private" {
 }
 
 # -------------------
-# SECURITY GROUPS
+# ELB SG
 # -------------------
-resource "aws_security_group" "ec2_sg" {
-  count  = var.create_ec2_sg ? 1 : 0
+resource "aws_security_group" "elb_sg" {
+  count  = var.create_elb_sg ? 1 : 0
   vpc_id = aws_vpc.this.id
 
   dynamic "ingress" {
-    for_each = var.ec2_ingress_rules
+    for_each = var.elb_ingress_rules
     content {
-      from_port   = ingress.value.from_port
-      to_port     = ingress.value.to_port
-      protocol    = ingress.value.protocol
-      cidr_blocks = ingress.value.cidr_blocks
+      from_port = ingress.value.from_port
+      to_port   = ingress.value.to_port
+      protocol  = ingress.value.protocol
+
+      cidr_blocks     = try(ingress.value.cidr_blocks, null)
+      security_groups = try(ingress.value.security_groups, null)
     }
   }
 
@@ -148,19 +155,27 @@ resource "aws_security_group" "ec2_sg" {
   }
 
   tags = {
-    Name = "${var.vpc_name}-ec2-sg"
+    Name = "${local.name_prefix}-elb-sg"
   }
 }
 
-resource "aws_security_group" "db_sg" {
-  count  = var.enable_nat_gateway ? 1 : 0
+# -------------------
+# APP SG
+# -------------------
+resource "aws_security_group" "app_sg" {
+  count  = var.create_app_sg ? 1 : 0
   vpc_id = aws_vpc.this.id
 
-  ingress {
-    from_port       = var.db_port
-    to_port         = var.db_port
-    protocol        = "tcp"
-    security_groups = var.create_ec2_sg ? [aws_security_group.ec2_sg[0].id] : []
+  dynamic "ingress" {
+    for_each = var.app_ingress_rules
+    content {
+      from_port = ingress.value.from_port
+      to_port   = ingress.value.to_port
+      protocol  = ingress.value.protocol
+
+      cidr_blocks     = try(ingress.value.cidr_blocks, null)
+      security_groups = try(ingress.value.security_groups, null)
+    }
   }
 
   egress {
@@ -171,6 +186,37 @@ resource "aws_security_group" "db_sg" {
   }
 
   tags = {
-    Name = "${var.vpc_name}-db-sg"
+    Name = "${local.name_prefix}-app-sg"
+  }
+}
+
+# -------------------
+# DB SG
+# -------------------
+resource "aws_security_group" "db_sg" {
+  count  = var.create_db_sg ? 1 : 0
+  vpc_id = aws_vpc.this.id
+
+  dynamic "ingress" {
+    for_each = var.db_ingress_rules
+    content {
+      from_port = ingress.value.from_port
+      to_port   = ingress.value.to_port
+      protocol  = ingress.value.protocol
+
+      cidr_blocks     = try(ingress.value.cidr_blocks, null)
+      security_groups = try(ingress.value.security_groups, null)
+    }
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${local.name_prefix}-db-sg"
   }
 }
