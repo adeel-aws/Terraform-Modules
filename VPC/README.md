@@ -92,6 +92,8 @@ module "vpc" {
   create_elb_sg = true
   create_app_sg = true
   create_db_sg  = true
+  create_eks_cluster_sg = true
+  create_eks_node_sg    = true
 
   # -------------------
   # ELB SG (Public Access)
@@ -132,6 +134,30 @@ module "vpc" {
       to_port         = 3306
       protocol        = "tcp"
       security_groups = [module.vpc.app_sg_id]
+    }
+  ]
+
+  # -------------------
+  # EKS Cluster SG
+  # -------------------
+  eks_cluster_ingress_rules = [
+    {
+      from_port       = 443
+      to_port         = 443
+      protocol        = "tcp"
+      security_groups = [module.vpc.eks_node_sg_id]
+    }
+  ]
+
+  # -------------------
+  # EKS Node SG
+  # -------------------
+  eks_node_ingress_rules = [
+    {
+      from_port       = 10250
+      to_port         = 10250
+      protocol        = "tcp"
+      security_groups = [module.vpc.eks_cluster_sg_id]
     }
   ]
 }

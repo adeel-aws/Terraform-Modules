@@ -8,92 +8,40 @@
 
 ## 📌 Overview
 
-This module provisions a production-ready **AWS CloudFront Distribution** for modern multi-origin applications.
+Production-ready **AWS CloudFront Distribution** module supporting static websites, full-stack applications, and enterprise CDN setups.
 
-It supports:
-- Static websites (S3)
-- Backend APIs (ALB / ECS / EC2)
-- SPA applications
-- Secure edge delivery
-- Optional HTTPS, WAF, logging, and geo restrictions
+Built-in support for:
+- S3 static frontend with OAC (secure private access — no public bucket needed)
+- Custom origins (ALB, API Gateway, EC2)
+- SPA routing fallback (React, Vue, Angular)
+- HTTPS via ACM
+- Security response headers
+- Optional WAF, logging, and geo restrictions
 
-Designed to be **fully reusable across projects (DevOps → CI/CD → Kubernetes frontend routing)**.
-
----
-
-## 🧠 Feature Map (What this module supports)
-
-### 🌍 Origin Types
-- S3 (static frontend)
-- Custom origin (ALB / API Gateway / EC2)
-
-### 🚀 Routing
-- Default origin routing
-- Path-based routing (`/api/*`, `/admin/*`, etc.)
-- Multi-service edge routing
-
-### 🔐 Security
-- Origin Access Control (OAC) for S3
-- HTTPS with ACM certificate
-- Optional AWS WAF integration
-- Custom headers support
-
-### ⚡ Performance
-- CloudFront caching policies
-- API cache bypass support
-- Compression enabled
-
-### 🧾 SPA Support
-- 403 / 404 → `/index.html` fallback
-
-### 📊 Observability
-- CloudFront access logging (optional)
-- Geo restriction support
+Designed to be reusable across all project types and environments.
 
 ---
 
-## 📥 Input Contract (IMPORTANT)
+## 🧠 Feature Map
 
-### Required Inputs
-```hcl
-project_name
-environment
-origins
-default_origin_id
-```
-
----
-
-### Optional Common Inputs
-```hcl
-behaviors
-domain_name
-acm_certificate_arn
-enable_logging
-logging_bucket_domain_name
-enable_waf
-tags
-```
-
----
-
-### Feature Enablement Map
-
-| Feature | Input |
-|--------|------|
-| Static website | S3 origin only |
-| API routing | behaviors + custom origin |
-| HTTPS | domain_name + acm_certificate_arn |
-| Logging | enable_logging = true |
-| WAF | enable_waf = true |
-| SPA support | automatic (built-in) |
+| Feature | Variable | Default |
+|---------|----------|---------|
+| S3 OAC (private bucket) | `enable_oac` | `true` |
+| SPA 404/403 fallback | `enable_spa_fallback` | `true` |
+| Security headers (HSTS, XSS) | `enable_security_headers` | `false` |
+| HTTPS custom domain | `domain_name` + `acm_certificate_arn` | `null` |
+| WAF | `enable_waf` | `false` |
+| Access logging | `enable_logging` | `false` |
+| Geo restriction | `geo_restriction_type` | `none` |
+| API cache bypass | `behaviors[].is_api = true` | automatic |
+| Origin protocol | `origin_protocol_policy` | `http-only` |
 
 ---
 
 ## 📁 Module Structure
 
-```text
-modules/cloudfront/
+```
+modules/CloudFront/
 ├── main.tf
 ├── variables.tf
 ├── outputs.tf
@@ -102,36 +50,16 @@ modules/cloudfront/
 
 ---
 
-## 🚀 Usage Templates
+## 🚀 Usage Examples
 
-### 🟢 1. Static Website (S3 Only)
+### 1. Static Website Only (S3)
 
-```hcl
-module "cloudfront" {
-  source = "./modules/cloudfront"
-
-  project_name = "portal"
-  environment  = "dev"
-
-  default_origin_id = "frontend"
-
-  origins = [
-    {
-      id          = "frontend"
-      domain_name = module.s3.bucket_domain_name
-      type        = "s3"
-    }
-  ]
-}
-```
-
----
-
-### 🔵 2. Full Stack (S3 + API)
+Simplest setup — S3 frontend served through CloudFront with OAC.
+No custom domain, no HTTPS certificate needed.
 
 ```hcl
 module "cloudfront" {
-  source = "./modules/cloudfront"
+  source = "../modules/CloudFront"
 
   project_name = "myapp"
   environment  = "dev"
@@ -141,12 +69,46 @@ module "cloudfront" {
   origins = [
     {
       id          = "frontend"
-      domain_name = module.s3.bucket_domain_name
+      domain_name = module.s3_frontend.bucket_domain_name
       type        = "s3"
+      bucket_name = module.s3_frontend.bucket_name
+      bucket_arn  = module.s3_frontend.bucket_arn
+    }
+  ]
+
+  enable_oac          = true
+  enable_spa_fallback = true
+}
+```
+
+---
+
+### 2. Full Stack — S3 Frontend + ALB Backend (No Custom Domain)
+
+React frontend on S3 + Node.js/Express backend on ECS behind ALB.
+API requests routed through CloudFront to ALB.
+
+```hcl
+module "cloudfront" {
+  source = "../modules/CloudFront"
+
+  project_name = "myapp"
+  environment  = "dev"
+
+  default_origin_id      = "frontend"
+  origin_protocol_policy = "http-only"
+
+  origins = [
+    {
+      id          = "frontend"
+      domain_name = module.s3_frontend.bucket_domain_name
+      type        = "s3"
+      bucket_name = module.s3_frontend.bucket_name
+      bucket_arn  = module.s3_frontend.bucket_arn
     },
     {
       id          = "api"
-      domain_name = module.alb.dns_name
+      domain_name = module.ecs.alb_dns_name
       type        = "custom"
     }
   ]
@@ -158,81 +120,122 @@ module "cloudfront" {
       is_api           = true
     }
   ]
+
+  enable_oac              = true
+  enable_spa_fallback     = true
+  enable_security_headers = false
 }
 ```
 
 ---
 
-### 🔴 3. Production Setup (HTTPS + Logging + WAF)
+### 3. Production — Custom Domain + HTTPS + Security Headers
+
+Full production setup with custom domain, ACM certificate, security headers.
+ACM certificate must be in us-east-1 regardless of your AWS region.
 
 ```hcl
 module "cloudfront" {
-  source = "./modules/cloudfront"
+  source = "../modules/CloudFront"
 
   project_name = "myapp"
   environment  = "prod"
 
-  default_origin_id = "frontend"
+  default_origin_id      = "frontend"
+  origin_protocol_policy = "https-only"
 
   origins = [
     {
       id          = "frontend"
-      domain_name = module.s3.bucket_domain_name
+      domain_name = module.s3_frontend.bucket_domain_name
       type        = "s3"
+      bucket_name = module.s3_frontend.bucket_name
+      bucket_arn  = module.s3_frontend.bucket_arn
     },
     {
       id          = "api"
-      domain_name = module.alb.dns_name
+      domain_name = module.ecs.alb_dns_name
       type        = "custom"
     }
   ]
 
-  domain_name         = "app.mycompany.com"
-  acm_certificate_arn = "arn:aws:acm:region:account:cert/xxx"
+  behaviors = [
+    {
+      path_pattern     = "/api/*"
+      target_origin_id = "api"
+      is_api           = true
+    }
+  ]
 
-  enable_logging = true
-  logging_bucket_domain_name = module.logs.bucket_domain_name
+  domain_name         = "example.com"
+  aliases             = ["app.example.com"]
+  acm_certificate_arn = module.acm.certificate_arn
 
-  enable_waf = false
+  enable_oac              = true
+  enable_spa_fallback     = true
+  enable_security_headers = true
+
+  price_class = "PriceClass_100"
 
   tags = {
     Owner = "DevOps"
-    Project = "Platform"
   }
 }
 ```
 
 ---
 
-## ⚙️ Notes
+## 🔐 OAC — How It Works
 
-- S3 origins automatically use OAC (secure private access)
-- API caching is disabled automatically via behavior flag
-- HTTPS is enforced when domain + ACM is provided
-- Module is environment-agnostic (dev/staging/prod)
+When `enable_oac = true`, the module:
+1. Creates an Origin Access Control resource
+2. Attaches it to all S3 origins
+3. Creates an S3 bucket policy allowing only CloudFront to read objects
+
+Your S3 bucket does **not** need to be public. This is the recommended AWS approach.
+
+**Required inputs per S3 origin when OAC is enabled:**
+```hcl
+bucket_name = module.s3_frontend.bucket_name
+bucket_arn  = module.s3_frontend.bucket_arn
+```
+
+---
+
+## 🌐 Origin Protocol Policy
+
+Controls how CloudFront connects to custom origins (ALB, EC2, API Gateway):
+
+| Value | When to use |
+|-------|-------------|
+| `http-only` | ALB has no HTTPS (HTTP listener only) |
+| `https-only` | ALB has HTTPS (ACM cert attached to ALB) |
+| `match-viewer` | Pass through whatever the viewer uses |
 
 ---
 
 ## 📤 Outputs
 
 | Output | Description |
-|------|-------------|
-| distribution_id | CloudFront ID |
-| distribution_domain_name | CDN URL |
-| distribution_arn | ARN |
+|--------|-------------|
+| `distribution_id` | CloudFront distribution ID (used for cache invalidation in CI/CD) |
+| `distribution_domain_name` | CDN URL (e.g. d1234abc.cloudfront.net) |
+| `distribution_arn` | Full ARN |
+| `distribution_hosted_zone_id` | Hosted zone ID for Route53 alias records |
 
 ---
 
-## 🧠 Design Philosophy
+## 🧠 Notes
 
-- Everything optional
-- No forced architecture
-- Works for static → full-stack → enterprise systems
-- Consistent naming across all modules (ECS, RDS, CloudFront)
+- ACM certificates for CloudFront **must** be created in `us-east-1`
+- ALB certificates can be in any region matching your ALB
+- `price_class = "PriceClass_100"` covers North America and Europe (cheapest)
+- Security headers are disabled by default — enable for production
+- API behaviors automatically disable caching and allow all HTTP methods
 
 ---
 
 ## 👨‍💻 Author
 
-Muhammad Adeel  :  
+**Muhammad Adeel**  
 DevOps Engineer

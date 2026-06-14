@@ -1,99 +1,156 @@
 variable "bucket_name" {
-  type = string
+  description = "Base bucket name — combined with project_name and environment as prefix"
+  type        = string
 }
 
 variable "project_name" {
-  type    = string
-  default = "myapp"
+  description = "Project name — used as part of the bucket name prefix"
+  type        = string
+  default     = "myapp"
 }
 
 variable "environment" {
-  type    = string
-  default = "dev"
+  description = "Environment name (e.g. dev, staging, prod)"
+  type        = string
+  default     = "dev"
 }
 
 variable "tags" {
-  type    = map(string)
-  default = {}
+  description = "Additional tags to merge onto all resources"
+  type        = map(string)
+  default     = {}
 }
 
 variable "force_destroy" {
-  type    = bool
-  default = false
+  description = "Allow bucket deletion even when it contains objects (useful for dev environments)"
+  type        = bool
+  default     = false
 }
 
-# 🔥 NEW: Core design switch (industry standard)
+# ================================================================
+#  ACCESS MODE
+#
+#  private     — fully private, no public access (default)
+#  public      — public GetObject allowed (static sites without CloudFront)
+#  cloudfront  — private bucket, accessible only via CloudFront OAC
+#                requires cloudfront_distribution_arn to be set
+# ================================================================
+
 variable "access_mode" {
-  type    = string
-  default = "private"
+  description = "Bucket access mode: private | public | cloudfront"
+  type        = string
+  default     = "private"
 
   validation {
     condition     = contains(["private", "public", "cloudfront"], var.access_mode)
-    error_message = "access_mode must be private, public, or cloudfront"
+    error_message = "access_mode must be one of: private, public, cloudfront"
   }
 }
 
-# Website hosting
+# ================================================================
+#  CLOUDFRONT OAC INTEGRATION
+#
+#  Pass the CloudFront *distribution* ARN here — NOT the OAC resource ARN.
+#  This is used in the bucket policy AWS:SourceArn condition.
+#  Format: arn:aws:cloudfront::ACCOUNT_ID:distribution/DISTRIBUTION_ID
+# ================================================================
+
+variable "cloudfront_distribution_arn" {
+  description = "CloudFront distribution ARN for OAC bucket policy (required when access_mode = cloudfront)"
+  type        = string
+  default     = null
+}
+
+# ================================================================
+#  STATIC WEBSITE HOSTING
+# ================================================================
+
 variable "enable_static_website" {
-  type    = bool
-  default = false
+  description = "Enable S3 static website hosting"
+  type        = bool
+  default     = false
 }
 
 variable "index_document" {
-  type    = string
-  default = "index.html"
+  description = "Index document for static website hosting"
+  type        = string
+  default     = "index.html"
 }
 
 variable "error_document" {
-  type    = string
-  default = "error.html"
+  description = "Error document for static website hosting"
+  type        = string
+  default     = "error.html"
 }
 
-# Versioning
+# ================================================================
+#  VERSIONING
+# ================================================================
+
 variable "enable_versioning" {
-  type    = bool
-  default = false
+  description = "Enable S3 object versioning"
+  type        = bool
+  default     = false
 }
 
-# Lifecycle
+# ================================================================
+#  LIFECYCLE RULES
+# ================================================================
+
 variable "enable_lifecycle_rule" {
-  type    = bool
-  default = false
+  description = "Enable lifecycle rule for automatic object expiration and storage class transitions"
+  type        = bool
+  default     = false
 }
 
 variable "lifecycle_expiration_days" {
-  type    = number
-  default = 30
+  description = "Number of days after which objects are permanently deleted"
+  type        = number
+  default     = 30
 }
 
 variable "lifecycle_transition_days" {
-  type    = number
-  default = 0
+  description = "Number of days after which objects transition to lifecycle_storage_class. Must be less than lifecycle_expiration_days. Set to 0 to disable transition."
+  type        = number
+  default     = 0
 }
 
 variable "lifecycle_storage_class" {
-  type    = string
-  default = "STANDARD_IA"
+  description = "Storage class to transition objects to (e.g. STANDARD_IA, GLACIER, DEEP_ARCHIVE)"
+  type        = string
+  default     = "STANDARD_IA"
+
+  validation {
+    condition = contains([
+      "STANDARD_IA",
+      "ONEZONE_IA",
+      "INTELLIGENT_TIERING",
+      "GLACIER",
+      "DEEP_ARCHIVE",
+      "GLACIER_IR"
+    ], var.lifecycle_storage_class)
+    error_message = "lifecycle_storage_class must be one of: STANDARD_IA, ONEZONE_IA, INTELLIGENT_TIERING, GLACIER, DEEP_ARCHIVE, GLACIER_IR"
+  }
 }
 
-# Logging
+# ================================================================
+#  ACCESS LOGGING
+# ================================================================
+
 variable "enable_logging" {
-  type    = bool
-  default = false
+  description = "Enable S3 access logging"
+  type        = bool
+  default     = false
 }
 
 variable "log_bucket" {
-  type    = string
-  default = ""
+  description = "Target S3 bucket name for access logs (required when enable_logging = true)"
+  type        = string
+  default     = ""
 }
 
 variable "log_prefix" {
-  type    = string
-  default = ""
-}
-
-# 🔐 CloudFront integration (optional, NOT required)
-variable "cloudfront_oac_arn" {
-  type    = string
-  default = null
+  description = "Prefix for access log objects in the log bucket"
+  type        = string
+  default     = ""
 }

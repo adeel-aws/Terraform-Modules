@@ -32,6 +32,15 @@ variable "create_db_sg"  {
   type = bool 
   default = false 
   }
+variable "create_eks_cluster_sg" {
+  type    = bool
+  default = false
+}
+
+variable "create_eks_node_sg" {
+  type    = bool
+  default = false
+}
 
 variable "tags" {
   type    = map(string)
@@ -64,6 +73,28 @@ variable "app_ingress_rules" {
 
 variable "db_ingress_rules" {
   description = "Ingress rules for DB SG"
+  type = list(object({
+    from_port       = number
+    to_port         = number
+    protocol        = string
+    cidr_blocks     = optional(list(string))
+    security_groups = optional(list(string))
+  }))
+  default = []
+}
+
+variable "eks_cluster_ingress_rules" {
+  type = list(object({
+    from_port       = number
+    to_port         = number
+    protocol        = string
+    cidr_blocks     = optional(list(string))
+    security_groups = optional(list(string))
+  }))
+  default = []
+}
+
+variable "eks_node_ingress_rules" {
   type = list(object({
     from_port       = number
     to_port         = number

@@ -171,7 +171,7 @@ module "s3" {
   environment  = "prod"
 
   access_mode          = "cloudfront"
-  cloudfront_oac_arn   = module.cloudfront.distribution_arn
+  cloudfront_distribution_arn = module.cloudfront.distribution_arn
 }
 ```
 
@@ -192,7 +192,7 @@ module "s3" {
   enable_logging        = true
   enable_lifecycle_rule = true
 
-  cloudfront_oac_arn    = module.cloudfront.distribution_arn
+  cloudfront_distribution_arn = module.cloudfront.distribution_arn
 }
 ```
 

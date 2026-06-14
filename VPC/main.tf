@@ -220,3 +220,64 @@ resource "aws_security_group" "db_sg" {
     Name = "${local.name_prefix}-db-sg"
   }
 }
+
+# -------------------
+# EKS Cluster SG
+# -------------------
+resource "aws_security_group" "eks_cluster_sg" {
+  count  = var.create_eks_cluster_sg ? 1 : 0
+  vpc_id = aws_vpc.this.id
+
+  dynamic "ingress" {
+    for_each = var.eks_cluster_ingress_rules
+    content {
+      from_port       = ingress.value.from_port
+      to_port         = ingress.value.to_port
+      protocol        = ingress.value.protocol
+      cidr_blocks     = try(ingress.value.cidr_blocks, null)
+      security_groups = try(ingress.value.security_groups, null)
+    }
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${local.name_prefix}-eks-cluster-sg"
+  }
+}
+
+
+# -------------------
+# EKS Node SG
+# -------------------
+resource "aws_security_group" "eks_node_sg" {
+  count  = var.create_eks_node_sg ? 1 : 0
+  vpc_id = aws_vpc.this.id
+
+  dynamic "ingress" {
+    for_each = var.eks_node_ingress_rules
+    content {
+      from_port       = ingress.value.from_port
+      to_port         = ingress.value.to_port
+      protocol        = ingress.value.protocol
+      cidr_blocks     = try(ingress.value.cidr_blocks, null)
+      security_groups = try(ingress.value.security_groups, null)
+    }
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${local.name_prefix}-eks-node-sg"
+  }
+}
